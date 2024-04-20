@@ -1,0 +1,32 @@
+dataset: "Voxconverse"
+data-folder: "data/test_wav"
+label-folder: "data/test_rttm"
+engine: "NEMO"
+verbose: True
+type: "ACCURACY"
+num-samples: 16000
+
+aws:
+  profile: ""
+  s3-bucket-name: ""
+
+azure:
+  region: ""
+  storage-account-key: ""
+  storage-account-name: ""
+  storage-container-name: ""
+  subscription-key: ""
+
+gcp:
+  bucket-name: ""
+  gcp-credentials: ""
+
+picovoice:
+  access-key: ""
+
+pyannote:
+  auth-token: ""
+
+
+
+

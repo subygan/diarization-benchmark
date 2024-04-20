@@ -1,9 +1,12 @@
 import argparse
 import math
+import os.path
 from collections import namedtuple
 from concurrent.futures import ProcessPoolExecutor
 from time import perf_counter
-
+from omegaconf import OmegaConf
+import omegaconf
+from icecream import ic
 from pyannote.metrics.diarization import (
     DiarizationErrorRate,
     JaccardErrorRate,
@@ -24,49 +27,49 @@ class BenchmarkTypes(Enum):
     MEMORY = "MEMORY"
 
 
-def _engine_params_parser(in_args: argparse.Namespace) -> Dict[str, Any]:
-    kwargs_engine = dict()
-    engine = Engines(in_args.engine)
+def _engine_params_parser(conf: omegaconf.DictConfig) -> Dict[str, Any]:
+    kwargs_engine = {}
+    engine = Engines(conf.engine)
     if engine is Engines.PICOVOICE_FALCON:
-        if in_args.picovoice_access_key is None:
-            raise ValueError(f"Engine {in_args.engine} requires --picovoice-access-key")
-        kwargs_engine.update(access_key=in_args.picovoice_access_key)
+        if conf.picovoice.access_key is None:
+            raise ValueError(f"Engine {conf.engine} requires --picovoice-access-key")
+        kwargs_engine.update(access_key=conf.picovoice.access_key)
     elif engine is Engines.PYANNOTE:
-        if in_args.pyannote_auth_token is None:
-            raise ValueError(f"Engine {in_args.engine} requires --pyannote-auth-token")
-        kwargs_engine.update(auth_token=in_args.pyannote_auth_token)
+        if conf.pyannote.auth_token is None:
+            raise ValueError(f"Engine {conf.engine} requires --pyannote-auth-token")
+        kwargs_engine.update(auth_token=conf.pyannote.auth_token)
     elif engine is Engines.AWS_TRANSCRIBE:
-        if in_args.aws_profile is None:
-            raise ValueError(f"Engine {in_args.engine} requires --aws-profile")
-        os.environ["AWS_PROFILE"] = in_args.aws_profile
-        if in_args.aws_s3_bucket_name is None:
-            raise ValueError(f"Engine {in_args.engine} requires --aws-s3-bucket-name")
-        kwargs_engine.update(bucket_name=in_args.aws_s3_bucket_name)
+        if conf.aws.profile is None:
+            raise ValueError(f"Engine {conf.engine} requires --aws-profile")
+        os.environ["AWS_PROFILE"] = conf.aws.profile
+        if conf.aws.s3_bucket_name is None:
+            raise ValueError(f"Engine {conf.engine} requires --aws-s3-bucket-name")
+        kwargs_engine.update(bucket_name=conf.aws.s3_bucket_name)
     elif engine in [Engines.GOOGLE_SPEECH_TO_TEXT, Engines.GOOGLE_SPEECH_TO_TEXT_ENHANCED]:
-        if in_args.gcp_credentials is None:
-            raise ValueError(f"Engine {in_args.engine} requires --gcp-credentials")
-        os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = in_args.gcp_credentials
-        if in_args.gcp_bucket_name is None:
-            raise ValueError(f"Engine {in_args.engine} requires --gcp-bucket-name")
-        kwargs_engine.update(bucket_name=in_args.gcp_bucket_name)
+        if conf.gcp.credentials is None:
+            raise ValueError(f"Engine {conf.engine} requires --gcp-credentials")
+        os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = conf.gcp.credentials
+        if conf.gcp.bucket_name is None:
+            raise ValueError(f"Engine {conf.engine} requires --gcp-bucket-name")
+        kwargs_engine.update(bucket_name=conf.gcp.bucket_name)
     elif engine is Engines.AZURE_SPEECH_TO_TEXT:
-        if in_args.azure_storage_account_name is None:
-            raise ValueError(f"Engine {in_args.engine} requires --azure-storage-account-name")
-        if in_args.azure_storage_account_key is None:
-            raise ValueError(f"Engine {in_args.engine} requires --azure-storage-account-key")
-        if in_args.azure_storage_container_name is None:
-            raise ValueError(f"Engine {in_args.engine} requires --azure-storage-container-name")
-        if in_args.azure_subscription_key is None:
-            raise ValueError(f"Engine {in_args.engine} requires --azure-subscription-key")
-        if in_args.azure_region is None:
-            raise ValueError(f"Engine {in_args.engine} requires --azure-region")
+        if conf.azure.storage_account_name is None:
+            raise ValueError(f"Engine {conf.engine} requires --azure-storage-account-name")
+        if conf.azure.storage_account_key is None:
+            raise ValueError(f"Engine {conf.engine} requires --azure-storage-account-key")
+        if conf.azure.storage_container_name is None:
+            raise ValueError(f"Engine {conf.engine} requires --azure-storage-container-name")
+        if conf.azure.subscription_key is None:
+            raise ValueError(f"Engine {conf.engine} requires --azure-subscription-key")
+        if conf.azure.region is None:
+            raise ValueError(f"Engine {conf.engine} requires --azure-region")
 
         kwargs_engine.update(
-            storage_account_name=in_args.azure_storage_account_name,
-            storage_account_key=in_args.azure_storage_account_key,
-            storage_container_name=in_args.azure_storage_container_name,
-            subscription_key=in_args.azure_subscription_key,
-            region=in_args.azure_region)
+            storage_account_name=conf.azure.storage_account_name,
+            storage_account_key=conf.azure.storage_account_key,
+            storage_container_name=conf.azure.storage_container_name,
+            subscription_key=conf.azure.subscription_key,
+            region=conf.azure.region)
 
     return kwargs_engine
 
@@ -74,6 +77,8 @@ def _engine_params_parser(in_args: argparse.Namespace) -> Dict[str, Any]:
 def _process_accuracy(engine: Engine, dataset: Dataset, verbose: bool = False) -> None:
     metric_der = DiarizationErrorRate(detailed=True, skip_overlap=True)
     metric_jer = JaccardErrorRate(detailed=True, skip_overlap=True)
+    ic(metric_der)
+    ic(metric_jer)
     metrics = [metric_der, metric_jer]
 
     cache_folder = os.path.join(DEFAULT_CACHE_FOLDER, str(dataset), str(engine))
@@ -105,6 +110,7 @@ def _process_accuracy(engine: Engine, dataset: Dataset, verbose: bool = False) -
 
     results = dict()
     for metric in metrics:
+        ic(metric)
         results[metric.name] = abs(metric)
     results_path = os.path.join(RESULTS_FOLDER, str(dataset), f"{str(engine)}.json")
     with open(results_path, "w") as f:
@@ -184,55 +190,59 @@ def _process_pool(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--dataset", choices=[ds.value for ds in Datasets], required=True)
-    parser.add_argument("--data-folder", required=True)
-    parser.add_argument("--label-folder", required=True)
-    parser.add_argument("--engine", choices=[en.value for en in Engines], required=True)
-    parser.add_argument("--verbose", action="store_true")
-    parser.add_argument("--aws-profile")
-    parser.add_argument("--aws-s3-bucket-name")
-    parser.add_argument("--azure-region")
-    parser.add_argument("--azure-storage-account-key")
-    parser.add_argument("--azure-storage-account-name")
-    parser.add_argument("--azure-storage-container-name")
-    parser.add_argument("--azure-subscription-key")
-    parser.add_argument("--gcp-bucket-name")
-    parser.add_argument("--gcp-credentials")
-    parser.add_argument("--picovoice-access-key")
-    parser.add_argument("--pyannote-auth-token")
-    parser.add_argument("--type", choices=[bt.value for bt in BenchmarkTypes], required=True)
-    parser.add_argument("--num-samples", type=int)
-    args = parser.parse_args()
+    conf = OmegaConf.load(os.path.join(os.curdir, "src/config/app.env.yaml"))
+    print(conf)
 
-    engine_args = _engine_params_parser(args)
+    # exit()
+    # parser = argparse.ArgumentParser()
+    # parser.add_argument("--dataset", choices=[ds.value for ds in Datasets], required=True)
+    # parser.add_argument("--data-folder", required=True)
+    # parser.add_argument("--label-folder", required=True)
+    # parser.add_argument("--engine", choices=[en.value for en in Engines], required=True)
+    # parser.add_argument("--verbose", action="store_true")
+    # parser.add_argument("--aws-profile")
+    # parser.add_argument("--aws-s3-bucket-name")
+    # parser.add_argument("--azure-region")
+    # parser.add_argument("--azure-storage-account-key")
+    # parser.add_argument("--azure-storage-account-name")
+    # parser.add_argument("--azure-storage-container-name")
+    # parser.add_argument("--azure-subscription-key")
+    # parser.add_argument("--gcp-bucket-name")
+    # parser.add_argument("--gcp-credentials")
+    # parser.add_argument("--picovoice-access-key")
+    # parser.add_argument("--pyannote-auth-token")
+    # parser.add_argument("--type", choices=[bt.value for bt in BenchmarkTypes], required=True)
+    # parser.add_argument("--num-samples", type=int)
+    # args = parser.parse_args()
 
-    dataset = Dataset.create(Datasets(args.dataset), data_folder=args.data_folder, label_folder=args.label_folder)
-    print(f"Dataset: {dataset}")
+    engine_args = _engine_params_parser(conf)
 
-    engine = Engine.create(Engines(args.engine), **engine_args)
-    print(f"Engine: {engine}")
+    dataset = Dataset.create(Datasets(conf.dataset), data_folder=conf.data_folder, label_folder=conf.label_folder)
+    ic(f"Dataset: {dataset}")
 
-    if args.type == BenchmarkTypes.ACCURACY.value:
-        _process_accuracy(engine, dataset, verbose=args.verbose)
-    elif args.type == BenchmarkTypes.CPU.value:
+    engine = Engine.create(Engines(conf.engine), **engine_args)
+    ic(f"Engine: {engine}")
+
+    if conf.type == BenchmarkTypes.ACCURACY.value:
+        _process_accuracy(engine, dataset, verbose=conf.verbose)
+    elif conf.type == BenchmarkTypes.CPU.value:
         if not engine.is_offline():
             raise ValueError("CPU benchmark is only supported for offline engines")
         _process_pool(
-            engine=args.engine,
+            engine=conf.engine,
             engine_params=engine_args,
             dataset=dataset,
-            num_samples=args.num_samples)
-    elif args.type == BenchmarkTypes.MEMORY.value:
+            num_samples=conf.num_samples)
+    elif conf.type == BenchmarkTypes.MEMORY.value:
         if not engine.is_offline():
             raise ValueError("Memory benchmark is only supported for offline engines")
         print("Please make sure the `mem_monitor.py` script is running and then press enter to continue...")
         input()
         _process_pool(
-            engine=args.engine,
+            engine=conf.engine,
             engine_params=engine_args,
             dataset=dataset,
-            num_samples=args.num_samples)
+            num_samples=conf.num_samples)
 
 
 if __name__ == "__main__":

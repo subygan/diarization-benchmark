@@ -161,3 +161,5 @@ cython_debug/
 .idea/*
 */data/test_rttm
 */data/test_wav
+*.env.yaml
+*/cache/*

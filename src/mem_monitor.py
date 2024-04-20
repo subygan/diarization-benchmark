@@ -7,6 +7,7 @@ from benchmark import RESULTS_FOLDER
 from dataset import *
 from engine import *
 
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset", choices=[ds.value for ds in Datasets], required=True)
