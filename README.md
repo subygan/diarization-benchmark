@@ -9,4 +9,3 @@ Azure has a weird way of installing client
 
 https://github.com/Azure-Samples/cognitive-services-speech-sdk/blob/master/samples/batch/python/README.md
 
-
