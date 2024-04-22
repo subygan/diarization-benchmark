@@ -9,3 +9,14 @@ Azure has a weird way of installing client
 
 https://github.com/Azure-Samples/cognitive-services-speech-sdk/blob/master/samples/batch/python/README.md
 
+
+
+### To run,
+
+Create a copy of the file in `/src/config/app.example.yaml` and setup the config and then run.
+
+From the root directory, run
+
+```
+python3 src/benchmark.py
+```

@@ -33,11 +33,11 @@ class Engines(Enum):
     GOOGLE_SPEECH_TO_TEXT_ENHANCED = "GOOGLE_SPEECH_TO_TEXT_ENHANCED"
     PICOVOICE_FALCON = "PICOVOICE_FALCON"
     PYANNOTE = "PYANNOTE"
-    NEMO = "NEMO"
+    NEMO_MSDD = "NEMO_MSDD"
 
 
 class Engine:
-    def diarization(self, path: str) -> "Annotation":
+    def diarization(self, path: str) -> Annotation:
         raise NotImplementedError()
 
     def cleanup(self) -> None:
@@ -418,3 +418,17 @@ class AzureSpeechToTextEngine(Engine):
 
     def __str__(self):
         return Engines.AZURE_SPEECH_TO_TEXT.value
+
+
+class NemoMSDD(Engine):
+    def diarization(self, path: str) -> Annotation:
+        raise NotImplementedError()
+
+    def cleanup(self) -> None:
+        raise NotImplementedError()
+
+    def is_offline(self) -> bool:
+        raise NotImplementedError()
+
+    def __str__(self) -> str:
+        raise NotImplementedError()

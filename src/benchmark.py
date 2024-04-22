@@ -70,6 +70,11 @@ def _engine_params_parser(conf: omegaconf.DictConfig) -> Dict[str, Any]:
             storage_container_name=conf.azure.storage_container_name,
             subscription_key=conf.azure.subscription_key,
             region=conf.azure.region)
+    elif engine is Engines.NEMO_MSDD:
+        kwargs_engine.update(
+            msdd_host=conf.nemo.msdd_host,
+            msdd_port=conf.nemo.msdd_port,
+        )
 
     return kwargs_engine
 
